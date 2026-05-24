@@ -1,0 +1,25 @@
+# Compiled Object files
+*.o
+*.obj
+
+# Compiled Binaries
+*.exe
+*.out
+*.app
+*.dll
+*.so
+
+# Debugging artifacts
+*.dSYM/
+*.suo
+*.pdb
+
+# OS generated files
+.DS_Store
+.DS_Store?
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
