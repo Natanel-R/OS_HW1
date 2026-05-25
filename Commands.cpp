@@ -92,6 +92,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
 
     if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_line);
     else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, &jobs);
+    else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, &jobs);
     return nullptr;
 }
 
@@ -148,6 +149,64 @@ QuitCommand::QuitCommand(const char* cmd_line, JobsList *j) : BuiltInCommand(cmd
     for (int i = 0; i < num_of_args; ++i) free(args[i]);
 }
 
+KillCommand::KillCommand(const char *cmd_line, JobsList *jobs) : BuiltInCommand(cmd_line)
+{
+    this->jobs = jobs;
+    this->valid = true;
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine(cmd_line, args);
+    if (num_of_args != 3)
+    {
+        valid = false;
+    }
+    else
+    {
+        try
+        {
+            if (args[1][0] != '-') 
+            {
+                valid = false;
+            }
+            else
+            {
+                this->signum = std::stoi(std::string(args[1]+1));
+                this->jobId = std::stoi(std::string(args[2]));
+                if (std::stoi(std::string(args[1]+1)) < 0 || 
+                std::stoi(std::string(args[1]+1)) > 31) valid = false;
+                else valid = true;
+            }
+        }
+        catch(...)
+        {
+            valid = false;
+        }
+    }
+    for (int i = 0; i < num_of_args; ++i) free(args[i]);
+}
+
+void KillCommand::execute()
+{
+    if (!valid) 
+    {
+        std::cerr << "smash error: kill: invalid arguments\n";
+        return;
+    }
+    JobsList::JobEntry* j = jobs->getJobById(this->jobId);
+    if (j == nullptr)
+    {
+        std::cerr << "smash error: kill: job-id " << this->jobId << " does not exist\n";
+        return;
+    }
+    int processId = j->getProcessId();
+    if (kill(processId, signum) == -1) 
+    {
+        perror("smash error: kill failed");
+        return;
+    }
+    std::cout << "signal number " << this->signum << " was sent to pid " << processId << "\n";
+
+}
+
 void QuitCommand::execute(){
     if (kill_active)
     {
@@ -168,4 +227,11 @@ void JobsList::killAllJobs() {
         std::cout << pair.first << ": " << pair.second.getCmd_line() << "\n";
         kill(pair.second.getProcessId(), SIGKILL);
     }
+}
+
+JobsList::JobEntry *JobsList::getJobById(int jobId)
+{
+    auto it = jobs_map.find(jobId);
+    if (it != jobs_map.end()) return &(it->second);
+    return nullptr;
 }

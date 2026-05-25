@@ -197,7 +197,12 @@ public:
 };
 
 class KillCommand : public BuiltInCommand {
-    // TODO: Add your data members
+private:
+    JobsList* jobs;
+    int signum;
+    int jobId;
+    bool valid;
+
 public:
     KillCommand(const char *cmd_line, JobsList *jobs);
 
