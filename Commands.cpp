@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <iomanip>
 #include "Commands.h"
+#include <regex>
 
 using namespace std;
 
@@ -90,9 +91,22 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
+    std::vector<std::pair<std::string, std::string>>* aliases = 
+        SmallShell::getInstance().getAliases();
+    for (const auto& p : *aliases)
+    {
+        if (firstWord == p.first)
+        {
+            cmd_s = p.second + cmd_s.substr(firstWord.length());
+            firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
+            break;
+        }
+    }
+
     if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_line);
     else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, &jobs);
     else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, &jobs);
+    else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_line);
     return nullptr;
 }
 
@@ -235,3 +249,67 @@ JobsList::JobEntry *JobsList::getJobById(int jobId)
     if (it != jobs_map.end()) return &(it->second);
     return nullptr;
 }
+
+AliasCommand::AliasCommand(const char *cmd_line) : BuiltInCommand(cmd_line) 
+{
+    this->is_print_only = false;
+    this->error_type = 0;
+    std::string cmd_str = _trim(cmd_line);
+    if (cmd_str == "alias") 
+    {
+        is_print_only = true;
+        return; 
+    }
+
+    std::regex given_regex(R"(^alias [a-zA-Z0-9_]+='[^']*'$)");
+    if (!std::regex_match(cmd_str, given_regex))
+    {
+        error_type = 1;
+        return;
+    }
+
+    size_t equal_indx = cmd_str.find('=');
+    this->name = cmd_str.substr(6, equal_indx - 6);
+    size_t quote_indx = equal_indx + 2;
+    size_t command_len = cmd_str.length() - quote_indx - 1;
+    this->command = cmd_str.substr(quote_indx, command_len);
+}
+
+void AliasCommand::execute()
+{
+    if (error_type == 1)
+    {
+        std::cerr << "smash error: alias: invalid alias format\n";
+        return;
+    }
+    std::vector<std::pair<std::string, std::string>>* aliases = 
+        SmallShell::getInstance().getAliases();
+    if (is_print_only)
+    {
+        for (const auto& p : *aliases)
+        {
+            std::cout << p.first << "='" << p.second << "'\n";
+        }
+        return;
+    }
+    std::vector<std::string> reserved_keywords = {"chprompt", "showpid", "pwd", "cd", "jobs"
+        , "fg", "quit", "kill", "alias", "unalias", "unsetenv", "sysinfo"};
+    for (const auto& key : reserved_keywords)
+    {
+        if (this->name == key) 
+        {
+            std::cerr << "smash error: alias: " << this->name << " already exists or is a reserved command\n";
+            return;
+        }
+    }
+    for (const auto& p : *aliases)
+    {
+        if (p.first == this->name)
+        {
+            std::cerr << "smash error: alias: " << this->name << " already exists or is a reserved command\n";
+            return;
+        }
+    }
+    aliases->push_back(std::make_pair(this->name, this->command));
+}
+

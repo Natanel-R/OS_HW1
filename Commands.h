@@ -224,6 +224,13 @@ public:
 };
 
 class AliasCommand : public BuiltInCommand {
+private:
+    std::string name;
+    std::string command;
+    bool is_print_only;
+    bool valid;
+    int error_type;
+
 public:
     AliasCommand(const char *cmd_line);
 
@@ -268,6 +275,7 @@ private:
     // TODO: Add your data members
     std::string name = "smash";
     JobsList jobs;
+    std::vector<std::pair<std::string, std::string>> aliases;
     SmallShell();
 
 public:
@@ -290,6 +298,8 @@ public:
         name = newName;
     }
     JobsList* getJobslist() { return &jobs; }  
+
+    std::vector<std::pair<std::string, std::string>>* getAliases() { return &aliases; }
 
     ~SmallShell();
 
