@@ -107,6 +107,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, &jobs);
     else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, &jobs);
     else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_line);
+    else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_line);
     return nullptr;
 }
 
@@ -321,5 +322,11 @@ void AliasCommand::execute()
     }
     aliases->push_back(std::make_pair(this->name, this->command));
 }
+
+void ShowPidCommand::execute(){
+    cout << "smash pid is " << getpid() << endl;
+}
+
+ShowPidCommand::ShowPidCommand(const char *cmd_line) : BuiltInCommand(cmd_line){}
 
 
