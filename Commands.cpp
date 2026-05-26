@@ -7,6 +7,7 @@
 #include <iomanip>
 #include "Commands.h"
 #include <regex>
+#include <limits.h>
 
 using namespace std;
 
@@ -108,6 +109,7 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, &jobs);
     else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_line);
     else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_line);
+    else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_line);
     return nullptr;
 }
 
@@ -330,3 +332,10 @@ void ShowPidCommand::execute(){
 ShowPidCommand::ShowPidCommand(const char *cmd_line) : BuiltInCommand(cmd_line){}
 
 
+PwdCommand::PwdCommand(const char *cmd_line) : BuiltInCommand(cmd_line) {}
+
+void PwdCommand::execute(){
+    char path[PATH_MAX];
+    getcwd(path, PATH_MAX);
+    cout << path << endl;
+}

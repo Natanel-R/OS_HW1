@@ -114,11 +114,30 @@ public:
     void execute() override;
 };
 
+class ChpromptCommand : public BuiltInCommand{
+private: 
+    std::string name = "smash";
+public:
+    ChpromptCommand(const char* cmd_line);
+    virtual ~ChpromptCommand() {};
+    void execute() override;
+};
+
 class ShowPidCommand : public BuiltInCommand {
 public:
     ShowPidCommand(const char *cmd_line);
 
     virtual ~ShowPidCommand() {
+    }
+
+    void execute() override;
+};
+
+class PwdCommand : public BuiltInCommand {
+public:
+    PwdCommand(const char *cmd_line);
+
+    virtual ~PwdCommand() {
     }
 
     void execute() override;
@@ -304,14 +323,7 @@ public:
     // TODO: add extra methods as needed
 };
 
-class ChpromptCommand : public BuiltInCommand{
-private: 
-    std::string name = "smash";
-public:
-    ChpromptCommand(const char* cmd_line);
-    virtual ~ChpromptCommand() {};
-    void execute() override;
-};
+
 
 
 #endif //SMASH_COMMAND_H_
