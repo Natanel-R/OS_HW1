@@ -133,6 +133,15 @@ BuiltInCommand::BuiltInCommand(const char* cmd_line) : Command(cmd_line)
 
 }
 
+std::string SmallShell::getPrompt() const{
+    return prompt;
+
+}
+
+void SmallShell::setPrompt(const std::string& newPrompt){
+    this->prompt = newPrompt;
+}
+
 ChpromptCommand::ChpromptCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {
     char* args[COMMAND_MAX_ARGS];
     int num_of_args = _parseCommandLine(cmd_line, args);
@@ -312,4 +321,5 @@ void AliasCommand::execute()
     }
     aliases->push_back(std::make_pair(this->name, this->command));
 }
+
 

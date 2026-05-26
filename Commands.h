@@ -273,7 +273,7 @@ public:
 class SmallShell {
 private:
     // TODO: Add your data members
-    std::string name = "smash";
+    std::string prompt = "smash";
     JobsList jobs;
     std::vector<std::pair<std::string, std::string>> aliases;
     SmallShell();
@@ -289,14 +289,10 @@ public:
         // Instantiated on first use.
         return instance;
     }
-    std::string getPrompt() const
-    {
-        return name;
-    }
-    void setPrompt(const std::string& newName)
-    {
-        name = newName;
-    }
+    std::string getPrompt() const;
+
+    void setPrompt(const std::string& newPrompt);
+
     JobsList* getJobslist() { return &jobs; }  
 
     std::vector<std::pair<std::string, std::string>>* getAliases() { return &aliases; }
