@@ -121,6 +121,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
+    else return new ExternalCommand(cmd_s.c_str());
     return nullptr;
 }
 
@@ -496,10 +497,21 @@ void SysInfoCommand::execute() {
     struct utsname name_data;
     struct sysinfo sys_info;
 
-    if (uname(&name_data) == -1) return;
-    if (sysinfo(&sys_info) == -1) return;
+    if (uname(&name_data) == -1) {
+        perror("smash error: uname failed");
+        return;
+    }
+
+    if (sysinfo(&sys_info) == -1) {
+        perror("smash error: sysinfo failed");
+        return;
+    }
 
     time_t current_time = time(NULL);
+    if (current_time == -1) {
+        perror("smash error: time failed");
+        return;
+    }
     time_t boot_time = current_time - sys_info.uptime;
     struct tm* boot_tm = localtime(&boot_time);
 
@@ -508,4 +520,33 @@ void SysInfoCommand::execute() {
     std::cout << "Kernel: " << name_data.release << "\n";
     std::cout << "Architecture: " << name_data.machine << "\n";
     std::cout << "Boot Time: " << std::put_time(boot_tm, "%Y-%m-%d %H:%M:%S") << "\n";
+}
+
+ExternalCommand::ExternalCommand(const char* cmd_line) : Command(cmd_line), cmd_line(cmd_line) {
+}
+
+void ExternalCommand::execute() {
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine(cmd_line.c_str(), args);
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("smash error: fork failed");
+        return;
+    }
+
+    if (pid == 0) {
+        execvp(args[0], args);
+
+        std::string local_path = "./" + std::string(args[0]);
+        execvp(local_path.c_str(), args);
+
+        perror("smash error: execvp failed");
+        exit(1);
+    } else {
+        if (waitpid(pid, NULL, WUNTRACED) == -1) {
+            perror("smash error: waitpid failed");
+        }
+    }
+    for (int i = 0; i < num_of_args; ++i) free(args[i]);
 }
