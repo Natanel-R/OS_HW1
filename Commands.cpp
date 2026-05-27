@@ -102,14 +102,14 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
         }
     }
 
-    if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_line);
-    else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, &jobs);
-    else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, &jobs);
-    else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_line);
-    else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_line);
-    else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_line);
-    else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_line);
-    else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_line, &jobs);
+    if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_s.c_str());
+    else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_s.c_str(), &jobs);
+    else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_s.c_str(), &jobs);
+    else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_s.c_str());
+    else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_s.c_str());
+    else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
+    else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
+    else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
     return nullptr;
 }
 
