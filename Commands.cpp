@@ -7,12 +7,13 @@
 #include <iomanip>
 #include "Commands.h"
 #include <regex>
-#include <fstream>
-#include <sys/utsname.h>
-#include <sys/sysinfo.h>
+#include <sys/utsname.h> 
+#include <sys/sysinfo.h> 
 #include <time.h>
-extern char** __environ;
+#include <fcntl.h> 
+#include <sys/types.h>
 #include <limits.h>
+extern char **__environ;
 
 using namespace std;
 
@@ -118,6 +119,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
+    else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_line);
     return nullptr;
 }
 
@@ -448,14 +450,28 @@ void UnSetEnvCommand::execute() {
 
     for (auto& name : remove_envvar) {
         std::string search_key = name + "=";
-        std::ifstream env_file(path);
-        if (env_file.is_open()) {
-            std::string entry;
-            while (std::getline(env_file, entry, '\0')) {
-                if (entry.find(search_key) == 0) {
+        int fd = open(path.c_str(), O_RDONLY);
+        if (fd != -1)
+        {
+            char buffer[4096];
+            size_t bytes_read;
+            std::string file = "";
+            while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0)
+            {
+                file.append(buffer, bytes_read);
+            }
+            close(fd);
+
+            size_t pos = 0;
+            while (pos < file.length())
+            {
+                std::string part(file.c_str() + pos);
+                if (part.find(search_key) == 0)
+                {
                     is_found = true;
                     break;
                 }
+                pos += part.length() + 1;
             }
         }
 
@@ -482,8 +498,16 @@ void SysInfoCommand::execute() {
     struct utsname name_data;
     struct sysinfo sys_info;
 
-    if (uname(&name_data) == -1) return;
-    if (sysinfo(&sys_info) == -1) return;
+    if (uname(&name_data) == -1)
+    {
+        perror("smash error: uname failed");
+        return;
+    }
+    if (sysinfo(&sys_info) == -1) 
+    {
+        perror("smash error: sysinfo failed");
+        return;
+    }
 
     time_t current_time = time(NULL);
     time_t boot_time = current_time - sys_info.uptime;
@@ -495,3 +519,44 @@ void SysInfoCommand::execute() {
     std::cout << "Architecture: " << name_data.machine << "\n";
     std::cout << "Boot Time: " << std::put_time(boot_tm, "%Y-%m-%d %H:%M:%S") << "\n";
 }
+
+WhoAmICommand::WhoAmICommand(const char* cmd_line) : Command(cmd_line) {}
+
+void WhoAmICommand::execute()
+{
+    uid_t uid = getuid();
+    std::string uid_user = std::to_string(uid);
+
+    int fd = open("/etc/passwd", O_RDONLY);
+    if (fd == -1)
+    {
+        perror("smash error: open failed");
+        return;
+    }
+
+    char buffer[4096];
+    size_t bytes_read;
+    std::string file = "";
+
+    while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) file.append(buffer, bytes_read);
+    close(fd);
+
+    std::istringstream iss(file);
+    std::string line;
+    while (std::getline(iss, line))
+    {
+        std::vector<std::string> items_inside_file;
+        std::istringstream line_stream(line);
+        std::string single_item;
+        while (std::getline(line_stream, single_item, ':')) items_inside_file.push_back(single_item);
+        if (items_inside_file.size() >= 6 && items_inside_file[2] == uid_user)
+        {
+            std::cout << items_inside_file[0] << "\n";
+            std::cout << items_inside_file[2] << "\n";
+            std::cout << items_inside_file[3] << "\n";
+            std::cout << items_inside_file[5] << "\n";
+            return;
+        }
+    }
+}
+
