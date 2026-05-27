@@ -93,6 +93,9 @@ SmallShell::~SmallShell() {
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
+Command::Command(const char* cmd_line) {
+}
+
 Command* SmallShell::CreateCommand(const char* cmd_line) {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
@@ -323,6 +326,9 @@ PwdCommand::PwdCommand(const char* cmd_line)
 void PwdCommand::execute() {
     char path[PATH_MAX];
     getcwd(path, PATH_MAX);
+    if (path == NULL) {
+        perror("smash error: getcwd failed");
+    }
     cout << path << endl;
 }
 
@@ -335,6 +341,9 @@ CdCommand::CdCommand(const char* cmd_line)
     if (this->numOfArgs == 0) {
         char curDir[PATH_MAX];
         getcwd(curDir, PATH_MAX);
+        if (curDir == NULL) {
+            perror("smash error: getcwd failed");
+        }
         this->newDir = curDir;
     } else {
         this->newDir = args[1];
@@ -348,26 +357,31 @@ void CdCommand::execute() {
 
     char curDir[PATH_MAX];
     getcwd(curDir, PATH_MAX);
+    if (curDir == NULL) {
+        perror("smash error: getcwd failed");
+    }
 
     if (numOfArgs == 0) {
         return;
     }
 
     if (this->numOfArgs > 1) {
-        cout << "smash error: cd: too many arguments" << endl;
+        cerr << "smash error: cd: too many arguments" << endl;
         return;
     }
 
     if (newDir == "-") {
         if (smash.getLastDir() == "") {
-            cout << "smash error: cd: OLDPWD not set" << endl;
+            cerr << "smash error: cd: OLDPWD not set" << endl;
             return;
         }
 
         newDir = smash.getLastDir();
     }
 
-    chdir(newDir.c_str());
+    if (chdir(newDir.c_str()) == -1) {
+        perror("smash error: getcwd failed");
+    }
     smash.setLastDir(curDir);
 }
 
