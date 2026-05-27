@@ -10,6 +10,9 @@
 
 class Command {
     // TODO: Add your data members
+    std::string cmdLine;
+    pid_t pid;
+
 public:
     Command(const char* cmd_line);
 
@@ -20,6 +23,8 @@ public:
     //virtual void prepare();
     //virtual void cleanup();
     // TODO: Add your extra methods if needed
+    std::string getCmdLine() const;
+    pid_t getPid() const;
 };
 
 class BuiltInCommand : public Command {
@@ -218,13 +223,16 @@ public:
 
     JobEntry* getLastJob(int* lastJobId);
 
+    ;
     JobEntry* getLastStoppedJob(int* jobId);
 
     // TODO: Add extra methods or modify exisitng ones as needed
 };
 
 class JobsCommand : public BuiltInCommand {
-    // TODO: Add your data members
+private:
+    JobsList* jobs;
+
 public:
     JobsCommand(const char* cmd_line, JobsList* jobs);
 

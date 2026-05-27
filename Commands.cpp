@@ -109,6 +109,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_line);
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_line);
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_line);
+    else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_line, &jobs);
     return nullptr;
 }
 
@@ -120,7 +121,8 @@ void SmallShell::executeCommand(const char* cmd_line) {
     }
 }
 
-Command::Command(const char* cmd_line) {
+Command::Command(const char* cmd_line) : cmdLine(cmd_line) {
+    this->pid = getpid();
 }
 
 Command::~Command() {
@@ -356,4 +358,33 @@ void CdCommand::execute() {
     chdir(newDir.c_str());
     smash.setLastDir(curDir);
 }
+
+JobsCommand::JobsCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(cmd_line) {
+    this->jobs = jobs;
+}
+
+void JobsCommand::execute() {
+    jobs->removeFinishedJobs();
+    jobs->printJobsList();
+}
+
+void JobsList::printJobsList() {
+    for (const auto& [key, value] : this->jobs_map) {
+        cout << "[" << value.getJobId() << "]" << value.getCmd_line() << endl;
+    }
+}
+
+void JobsList::addJob(Command* cmd, bool isStopped) {
+    ++max_job_id;
+    jobs_map[max_job_id] = JobEntry(max_job_id, cmd->getPid(), cmd->getCmdLine(), isStopped);
+}
+
+std::string Command::getCmdLine() const {
+    return this->cmdLine;
+}
+
+pid_t Command::getPid() const {
+    return this->pid;
+}
+
 
