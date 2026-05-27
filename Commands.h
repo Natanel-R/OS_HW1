@@ -241,6 +241,10 @@ public:
 };
 
 class UnAliasCommand : public BuiltInCommand {
+private:
+    bool not_enough_args = false;
+    std::vector<std::string> remove_aliases;
+
 public:
     UnAliasCommand(const char *cmd_line);
 
@@ -251,6 +255,10 @@ public:
 };
 
 class UnSetEnvCommand : public BuiltInCommand {
+private:
+    bool not_enough_args = false;
+    std::vector<std::string> remove_envvar;
+
 public:
     UnSetEnvCommand(const char *cmd_line);
 

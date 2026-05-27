@@ -7,6 +7,11 @@
 #include <iomanip>
 #include "Commands.h"
 #include <regex>
+#include <fstream>
+#include <sys/utsname.h> 
+#include <sys/sysinfo.h> 
+#include <time.h>
+extern char **__environ;
 
 using namespace std;
 
@@ -107,6 +112,9 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
     else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, &jobs);
     else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, &jobs);
     else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_line);
+    else if (firstWord.compare("unalias") == 0) return new UnAliasCommand(cmd_line);
+    else if (firstWord.compare("unsetenv") == 0) return new UnSetEnvCommand(cmd_line);
+    else if(firstWord.compare("sysinfo") == 0) return new SysInfoCommand(cmd_line);
     return nullptr;
 }
 
@@ -313,3 +321,126 @@ void AliasCommand::execute()
     aliases->push_back(std::make_pair(this->name, this->command));
 }
 
+UnAliasCommand::UnAliasCommand(const char* cmd_line) : BuiltInCommand(cmd_line)
+{
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine(cmd_line, args);
+
+    if (num_of_args <= 1) this->not_enough_args = true;
+
+    for (int i = 1; i < num_of_args; ++i) this->remove_aliases.push_back(args[i]);
+
+    for (int i = 0; i < num_of_args; ++i) free(args[i]);
+}
+
+void UnAliasCommand::execute()
+{
+    if (not_enough_args) 
+    {
+        std::cerr << "smash error: unalias: not enough arguments\n";
+        return;
+    }
+    std::vector<std::pair<std::string, std::string>>* aliases = 
+        SmallShell::getInstance().getAliases();
+    bool is_found = false;
+    
+    for (auto& name : remove_aliases)
+    {
+        for (auto it = aliases->begin(); it != aliases->end(); ++it)
+        {
+            if (name == it->first)
+            {
+                aliases->erase(it);
+                is_found = true;
+                break;
+            }
+        }
+        if (!is_found)
+        {
+            std::cerr << "smash error: unalias: " << name << " alias does not exist\n";
+            return;
+        }
+        is_found = false;
+    }
+}
+
+UnSetEnvCommand::UnSetEnvCommand(const char* cmd_line) : BuiltInCommand(cmd_line)
+{
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine(cmd_line, args);
+
+    if (num_of_args <= 1) this->not_enough_args = true;
+
+    for (int i = 1; i < num_of_args; ++i) this->remove_envvar.push_back(args[i]);
+
+    for (int i = 0; i < num_of_args; ++i) free(args[i]);
+}
+
+void UnSetEnvCommand::execute()
+{
+    if (not_enough_args) 
+    {
+        std::cerr << "smash error: unsetenv: not enough arguments\n";
+        return;
+    }
+
+    pid_t pid = getpid();
+    std::string path = "/proc/" + std::to_string(pid) + "/environ";
+    bool is_found = false;
+    
+    for (auto& name : remove_envvar)
+    {
+        std::string search_key = name + "=";
+        std::ifstream env_file(path);
+        if (env_file.is_open())
+        {
+            std::string entry;
+            while (std::getline(env_file, entry, '\0'))
+            {
+                if (entry.find(search_key) == 0)
+                {
+                    is_found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!is_found)
+        {
+            std::cerr << "smash error: unsetenv: " << name << " does not exist\n";
+            return;
+        }
+
+        for (int i = 0; __environ[i] != nullptr; ++i)
+        {
+            std::string current_env(__environ[i]);
+            if (current_env.find(search_key) == 0)
+            {
+                for (int j = i; __environ[j] != nullptr; ++j) __environ[j] = __environ[j+1];
+                break;
+            }
+        }
+        is_found = false;
+    }
+}
+
+SysInfoCommand::SysInfoCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
+
+void SysInfoCommand::execute()
+{
+    struct utsname name_data;
+    struct sysinfo sys_info;
+
+    if (uname(&name_data) == -1) return;
+    if (sysinfo(&sys_info) == -1) return;
+
+    time_t current_time = time(NULL);
+    time_t boot_time = current_time - sys_info.uptime;
+    struct tm* boot_tm = localtime(&boot_time);
+
+    std::cout << "System: " << name_data.sysname << "\n";
+    std::cout << "Hostname: " << name_data.nodename << "\n";
+    std::cout << "Kernel: " << name_data.release << "\n";
+    std::cout << "Architecture: " << name_data.machine << "\n";
+    std::cout << "Boot Time: " << std::put_time(boot_tm, "%Y-%m-%d %H:%M:%S") << "\n";
+}
