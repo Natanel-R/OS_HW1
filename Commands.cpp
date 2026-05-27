@@ -110,6 +110,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
+    else if (firstWord.compare("unalias") == 0) return new UnAliasCommand(cmd_s.c_str());
     return nullptr;
 }
 
@@ -299,15 +300,55 @@ void AliasCommand::execute() {
     aliases->push_back(std::make_pair(this->name, this->command));
 }
 
+UnAliasCommand::UnAliasCommand(const char* cmd_line) : BuiltInCommand(cmd_line),
+                                                       cmd_line(cmd_line) {
+}
+
+void UnAliasCommand::execute() {
+    auto* aliases = SmallShell::getInstance().getAliases();
+    char* args[COMMAND_MAX_ARGS];
+    int numOfArgs = _parseCommandLine(this->cmd_line.c_str(), args);
+    if (numOfArgs == 1) {
+        cout << "smash error: unalias: not enough arguments" << endl;
+        return;
+    }
+    for (int i = 1; i < numOfArgs; i++) {
+        bool exist = false;
+        for (auto& it : *aliases) {
+            if (it.first == args[i]) {
+                exist = true;
+                break;
+            }
+        }
+        if (exist == false) {
+            cout << "smash error: unalias: " << args[i] << " alias does not exist" << endl;
+            return;
+        }
+    }
+
+    for (int i = 1; i < numOfArgs; i++) {
+        for (auto it = aliases->begin(); it != aliases->end(); it++) {
+            if (it->first == args[i]) {
+                aliases->erase(it);
+                break;
+            }
+        }
+    }
+}
+
 void ShowPidCommand::execute() {
     cout << "smash pid is " << getpid() << endl;
 }
 
-ShowPidCommand::ShowPidCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {
+ShowPidCommand::ShowPidCommand(const char* cmd_line)
+    :
+    BuiltInCommand(cmd_line) {
 }
 
 
-PwdCommand::PwdCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {
+PwdCommand::PwdCommand(const char* cmd_line)
+    :
+    BuiltInCommand(cmd_line) {
 }
 
 void PwdCommand::execute() {
@@ -316,7 +357,9 @@ void PwdCommand::execute() {
     cout << path << endl;
 }
 
-CdCommand::CdCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {
+CdCommand::CdCommand(const char* cmd_line)
+    :
+    BuiltInCommand(cmd_line) {
     char* args[COMMAND_MAX_ARGS];
     int num_of_args = _parseCommandLine(cmd_line, args);
     this->numOfArgs = num_of_args - 1;
@@ -359,24 +402,21 @@ void CdCommand::execute() {
     smash.setLastDir(curDir);
 }
 
-JobsCommand::JobsCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(cmd_line) {
+JobsCommand::JobsCommand(const char* cmd_line, JobsList* jobs)
+    :
+    BuiltInCommand(cmd_line) {
     this->jobs = jobs;
 }
 
 void JobsCommand::execute() {
-    jobs->removeFinishedJobs();
     jobs->printJobsList();
 }
 
 void JobsList::printJobsList() {
-    for (const auto& [key, value] : this->jobs_map) {
-        cout << "[" << value.getJobId() << "]" << value.getCmd_line() << endl;
-    }
 }
 
 void JobsList::addJob(Command* cmd, bool isStopped) {
     ++max_job_id;
-    jobs_map[max_job_id] = JobEntry(max_job_id, cmd->getPid(), cmd->getCmdLine(), isStopped);
 }
 
 std::string Command::getCmdLine() const {

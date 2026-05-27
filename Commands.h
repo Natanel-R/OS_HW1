@@ -287,6 +287,8 @@ public:
 };
 
 class UnAliasCommand : public BuiltInCommand {
+    std::string cmd_line;
+
 public:
     UnAliasCommand(const char* cmd_line);
 
