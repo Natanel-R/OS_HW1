@@ -134,9 +134,9 @@ void SmallShell::executeCommand(const char* cmd_line) {
 
 Command::~Command() {
 }
+Command::Command(const char* cmd_line) {}
 
-BuiltInCommand::BuiltInCommand(const char* cmd_line) : Command(cmd_line) {
-}
+BuiltInCommand::BuiltInCommand(const char* cmd_line) : Command(cmd_line) {}
 
 std::string SmallShell::getPrompt() const {
     return prompt;
@@ -237,7 +237,7 @@ JobsList::~JobsList() {
 }
 
 void JobsList::killAllJobs() {
-    std::cout << "sending SIGKILL signal to " <<
+    std::cout << "smash: sending SIGKILL signal to " <<
         SmallShell::getInstance().getJobslist()->jobs_map.size() << " jobs:\n";
     for (auto const& pair : jobs_map) {
         std::cout << pair.first << ": " << pair.second.getCmd_line() << "\n";
