@@ -14,6 +14,8 @@
 #include <sys/types.h>
 #include <limits.h>
 #include <sys/syscall.h>
+#include <cstdint>
+#include <algorithm>
 extern char **__environ;
 
 using namespace std;
@@ -30,6 +32,27 @@ const std::string WHITESPACE = " \n\r\t\f\v";
 #define FUNC_ENTRY()
 #define FUNC_EXIT()
 #endif
+
+struct USB
+{
+    int dev_num_int;
+    std::string dev_num;
+    std::string vendor;
+    std::string product;
+    std::string manufacturer;
+    std::string product_name;
+    std::string power;
+};
+
+struct Decoder
+{
+    uint64_t inode_number;
+    int64_t offset;
+    ushort dir_entry;
+    unsigned char file_type;
+    char file_name[];
+};
+
 
 string _ltrim(const std::string& s) {
     size_t start = s.find_first_not_of(WHITESPACE);
@@ -562,12 +585,86 @@ void WhoAmICommand::execute()
     }
 }
 
-USBInfoCommand::USBInfoCommand(const char* cmd_line) : Command(cmd_line)
+std::string readUSB(const std::string& path)
 {
+    int fd = syscall(SYS_open, path.c_str(), O_RDONLY);
+    if (fd == -1) return "N/A";
 
+    char buffer[256];
+    size_t bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer)-1);
+    syscall(SYS_close, fd);
+    
+    if (bytes_read <= 0) return "N/A";
+
+    if (buffer[bytes_read - 1] == '\n') buffer[bytes_read - 1] = '\0';
+    else buffer[bytes_read] = '\0';
+    
+    return std::string(buffer);
 }
+
+USBInfoCommand::USBInfoCommand(const char* cmd_line) : Command(cmd_line) {}
 
 void USBInfoCommand::execute()
 {
+    int fd = syscall(SYS_open, "/sys/bus/usb/devices/", O_RDONLY | O_DIRECTORY);
+    if (fd == -1)
+    {
+        std::cerr << "smash error: usbinfo: no USB devices found\n";
+        return;
+    }
 
+    std::vector<USB> devices;
+    char buffer[4096];
+    size_t bytes_read;
+
+    while ((bytes_read = syscall(SYS_getdents64, fd, buffer, sizeof(buffer))) > 0)
+    {
+        size_t offset = 0;
+        while (offset < bytes_read)
+        {
+            Decoder* entry = (Decoder*)(buffer + offset);
+            std::string folder_name(entry->file_name); 
+            offset += entry->dir_entry;
+            if (folder_name == "." || folder_name == "..") continue;
+
+            std::string base_path = "/sys/bus/usb/devices/" + folder_name + "/";
+            std::string device_str = readUSB(base_path + "devnum");
+            if (device_str == "N/A") continue;
+            
+            std::string power = readUSB(base_path + "bMaxPower");
+            if (power != "N/A" && power.length() >= 2 && power.substr(power.length() - 2) == "mA")
+            {
+                power = power.substr(0, power.length() -2);
+            }
+            USB device = {
+                std::stoi(device_str),
+                device_str,
+                readUSB(base_path + "idVendor"),
+                readUSB(base_path + "idProduct"),
+                readUSB(base_path + "manufacturer"),
+                readUSB(base_path + "product"),
+                power,
+            };
+            devices.push_back(device);
+        }
+    }
+    syscall(SYS_close, fd);
+    if (devices.empty())
+    {
+        std::cerr << "smash error: usbinfo: no USB devices found\n";
+        return;
+    }
+
+    std::sort(devices.begin(), devices.end(), [](const USB& a, const USB& b){
+        return a.dev_num_int < b.dev_num_int;
+    });
+
+    for (const auto& dev : devices)
+    {
+        std::cout << "Device " << dev.dev_num << ": "
+                    << "ID " << dev.vendor << ":" << dev.product << " "
+                    << dev.manufacturer << " " << dev.product_name << " MaxPower: ";
+        if (dev.power == "N/A") std::cout << "N/A\n";
+        else std::cout << dev.power << "mA\n";
+    }
 }
