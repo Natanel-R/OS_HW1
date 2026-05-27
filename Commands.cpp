@@ -536,11 +536,20 @@ void ExternalCommand::execute() {
     }
 
     if (pid == 0) {
-        execvp(args[0], args);
+        if (isComplexCommand(this->cmd_line)) {
+            char* bash_args[4];
+            bash_args[0] = (char*)"/bin/bash";
+            bash_args[1] = (char*)"-c";
+            bash_args[2] = (char*)cmd_line.c_str();
+            bash_args[3] = NULL;
 
-        std::string local_path = "./" + std::string(args[0]);
-        execvp(local_path.c_str(), args);
+            execv("/bin/bash", bash_args);
+        } else {
+            execvp(args[0], args);
 
+            std::string local_path = "./" + std::string(args[0]);
+            execvp(local_path.c_str(), args);
+        }
         perror("smash error: execvp failed");
         exit(1);
     } else {
@@ -550,3 +559,11 @@ void ExternalCommand::execute() {
     }
     for (int i = 0; i < num_of_args; ++i) free(args[i]);
 }
+
+bool ExternalCommand::isComplexCommand(const std::string& cmd) {
+    if (cmd.find('*') != std::string::npos || cmd.find('?') != std::string::npos) {
+        return true;
+    }
+    return false;
+}
+

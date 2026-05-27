@@ -32,6 +32,7 @@ public:
 
 class ExternalCommand : public Command {
     std::string cmd_line;
+    bool isComplexCommand(const std::string& cmd);
 
 public:
     ExternalCommand(const char* cmd_line);
