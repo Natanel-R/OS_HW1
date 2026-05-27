@@ -13,6 +13,7 @@
 #include <fcntl.h> 
 #include <sys/types.h>
 #include <limits.h>
+#include <sys/syscall.h>
 extern char **__environ;
 
 using namespace std;
@@ -120,6 +121,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
     else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_line);
+    else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_line);
     return nullptr;
 }
 
@@ -444,23 +446,23 @@ void UnSetEnvCommand::execute() {
         return;
     }
 
-    pid_t pid = getpid();
+    pid_t pid = syscall(SYS_getpid);
     std::string path = "/proc/" + std::to_string(pid) + "/environ";
     bool is_found = false;
 
     for (auto& name : remove_envvar) {
         std::string search_key = name + "=";
-        int fd = open(path.c_str(), O_RDONLY);
+        int fd = syscall(SYS_open, path.c_str(), O_RDONLY);
         if (fd != -1)
         {
             char buffer[4096];
             size_t bytes_read;
             std::string file = "";
-            while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0)
+            while (((bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer)))) > 0)
             {
                 file.append(buffer, bytes_read);
             }
-            close(fd);
+            syscall(SYS_close, fd);
 
             size_t pos = 0;
             while (pos < file.length())
@@ -498,12 +500,12 @@ void SysInfoCommand::execute() {
     struct utsname name_data;
     struct sysinfo sys_info;
 
-    if (uname(&name_data) == -1)
+    if (syscall(SYS_uname, &name_data) == -1)
     {
         perror("smash error: uname failed");
         return;
     }
-    if (sysinfo(&sys_info) == -1) 
+    if (syscall(SYS_sysinfo, &sys_info) == -1) 
     {
         perror("smash error: sysinfo failed");
         return;
@@ -524,10 +526,10 @@ WhoAmICommand::WhoAmICommand(const char* cmd_line) : Command(cmd_line) {}
 
 void WhoAmICommand::execute()
 {
-    uid_t uid = getuid();
+    uid_t uid = syscall(SYS_getuid);
     std::string uid_user = std::to_string(uid);
 
-    int fd = open("/etc/passwd", O_RDONLY);
+    int fd = syscall(SYS_open, "/etc/passwd", O_RDONLY);
     if (fd == -1)
     {
         perror("smash error: open failed");
@@ -538,8 +540,8 @@ void WhoAmICommand::execute()
     size_t bytes_read;
     std::string file = "";
 
-    while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) file.append(buffer, bytes_read);
-    close(fd);
+    while (((bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer))) > 0)) file.append(buffer, bytes_read);
+    syscall(SYS_close, fd);
 
     std::istringstream iss(file);
     std::string line;
@@ -560,3 +562,12 @@ void WhoAmICommand::execute()
     }
 }
 
+USBInfoCommand::USBInfoCommand(const char* cmd_line) : Command(cmd_line)
+{
+
+}
+
+void USBInfoCommand::execute()
+{
+
+}
