@@ -120,6 +120,9 @@ SmallShell::~SmallShell() {
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
+Command::Command(const char* cmd_line) {
+}
+
 Command* SmallShell::CreateCommand(const char* cmd_line) {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
@@ -145,8 +148,12 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
+<<<<<<< HEAD
     else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_line);
     else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_line);
+=======
+    else return new ExternalCommand(cmd_s.c_str());
+>>>>>>> branch2
     return nullptr;
 }
 
@@ -352,6 +359,9 @@ PwdCommand::PwdCommand(const char* cmd_line)
 void PwdCommand::execute() {
     char path[PATH_MAX];
     getcwd(path, PATH_MAX);
+    if (path == NULL) {
+        perror("smash error: getcwd failed");
+    }
     cout << path << endl;
 }
 
@@ -364,6 +374,9 @@ CdCommand::CdCommand(const char* cmd_line)
     if (this->numOfArgs == 0) {
         char curDir[PATH_MAX];
         getcwd(curDir, PATH_MAX);
+        if (curDir == NULL) {
+            perror("smash error: getcwd failed");
+        }
         this->newDir = curDir;
     } else {
         this->newDir = args[1];
@@ -377,26 +390,31 @@ void CdCommand::execute() {
 
     char curDir[PATH_MAX];
     getcwd(curDir, PATH_MAX);
+    if (curDir == NULL) {
+        perror("smash error: getcwd failed");
+    }
 
     if (numOfArgs == 0) {
         return;
     }
 
     if (this->numOfArgs > 1) {
-        cout << "smash error: cd: too many arguments" << endl;
+        cerr << "smash error: cd: too many arguments" << endl;
         return;
     }
 
     if (newDir == "-") {
         if (smash.getLastDir() == "") {
-            cout << "smash error: cd: OLDPWD not set" << endl;
+            cerr << "smash error: cd: OLDPWD not set" << endl;
             return;
         }
 
         newDir = smash.getLastDir();
     }
 
-    chdir(newDir.c_str());
+    if (chdir(newDir.c_str()) == -1) {
+        perror("smash error: getcwd failed");
+    }
     smash.setLastDir(curDir);
 }
 
@@ -537,6 +555,10 @@ void SysInfoCommand::execute() {
     }
 
     time_t current_time = time(NULL);
+    if (current_time == -1) {
+        perror("smash error: time failed");
+        return;
+    }
     time_t boot_time = current_time - sys_info.uptime;
     struct tm* boot_tm = localtime(&boot_time);
 
@@ -547,6 +569,7 @@ void SysInfoCommand::execute() {
     std::cout << "Boot Time: " << std::put_time(boot_tm, "%Y-%m-%d %H:%M:%S") << "\n";
 }
 
+<<<<<<< HEAD
 WhoAmICommand::WhoAmICommand(const char* cmd_line) : Command(cmd_line) {}
 
 void WhoAmICommand::execute()
@@ -670,3 +693,61 @@ void USBInfoCommand::execute()
         else std::cout << dev.power << "mA\n";
     }
 }
+
+ExternalCommand::ExternalCommand(const char* cmd_line) : Command(cmd_line), cmd_line(cmd_line) {
+}
+
+void ExternalCommand::execute() {
+    bool is_background = _isBackgroundComamnd(cmd_line.c_str());
+    char cmd_line_copy[COMMAND_MAX_LENGTH];
+    strcpy(cmd_line_copy, cmd_line.c_str());
+    if (is_background) _removeBackgroundSign(cmd_line_copy);
+
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine(cmd_line_copy, args);
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("smash error: fork failed");
+        return;
+    }
+
+    if (pid == 0) {
+        if (isComplexCommand(cmd_line_copy)) {
+            char* bash_args[4];
+            bash_args[0] = (char*)"/bin/bash";
+            bash_args[1] = (char*)"-c";
+            bash_args[2] = (char*)cmd_line.c_str();
+            bash_args[3] = NULL;
+
+            execv("/bin/bash", bash_args);
+        } else {
+            execvp(args[0], args);
+
+            std::string local_path = "./" + std::string(args[0]);
+            execvp(local_path.c_str(), args);
+        }
+        perror("smash error: execvp failed");
+        exit(1);
+    } else {
+        SmallShell& smash = SmallShell::getInstance();
+        if (is_background) smash.getJobslist()->addJob(this, pid);
+        else
+        {
+            smash.setFr_pid(pid);
+            if (waitpid(pid, NULL, WUNTRACED) == -1) {
+                perror("smash error: waitpid failed");
+            }
+            smash.setFr_pid(-1);
+        }
+    }
+    for (int i = 0; i < num_of_args; ++i) free(args[i]);
+}
+
+bool ExternalCommand::isComplexCommand(const std::string& cmd) {
+    if (cmd.find('*') != std::string::npos || cmd.find('?') != std::string::npos) {
+        return true;
+    }
+    return false;
+}
+

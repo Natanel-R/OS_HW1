@@ -31,6 +31,9 @@ public:
 };
 
 class ExternalCommand : public Command {
+    std::string cmd_line;
+    bool isComplexCommand(const std::string& cmd);
+
 public:
     ExternalCommand(const char* cmd_line);
 
@@ -128,7 +131,7 @@ public:
 
 class ShowPidCommand : public BuiltInCommand {
 public:
-    ShowPidCommand(const char *cmd_line);
+    ShowPidCommand(const char* cmd_line);
 
     virtual ~ShowPidCommand() {
     }
@@ -287,7 +290,7 @@ private:
     std::vector<std::string> remove_aliases;
 
 public:
-    UnAliasCommand(const char *cmd_line);
+    UnAliasCommand(const char* cmd_line);
 
     virtual ~UnAliasCommand() {
     }
@@ -301,7 +304,7 @@ private:
     std::vector<std::string> remove_envvar;
 
 public:
-    UnSetEnvCommand(const char *cmd_line);
+    UnSetEnvCommand(const char* cmd_line);
 
     virtual ~UnSetEnvCommand() {
     }
@@ -311,7 +314,7 @@ public:
 
 class SysInfoCommand : public BuiltInCommand {
 public:
-    SysInfoCommand(const char *cmd_line);
+    SysInfoCommand(const char* cmd_line);
 
     virtual ~SysInfoCommand() {
     }
