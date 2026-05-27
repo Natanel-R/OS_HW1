@@ -327,6 +327,7 @@ private:
     std::vector<std::pair<std::string, std::string>> aliases;
     SmallShell();
     std::string lastDir = "";
+    pid_t fg_pid = -1;
 
 public:
     Command* CreateCommand(const char* cmd_line);
@@ -347,6 +348,10 @@ public:
     std::string getLastDir() const;
 
     void setLastDir(const std::string& newLastDir);
+
+    pid_t getFg_pid() const { return fg_pid; }
+
+    void setFg_pid(pid_t new_pid) { fg_pid = new_pid; }
 
     JobsList* getJobslist() { return &jobs; }
 
