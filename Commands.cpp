@@ -148,12 +148,9 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
-<<<<<<< HEAD
     else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_line);
     else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_line);
-=======
     else return new ExternalCommand(cmd_s.c_str());
->>>>>>> branch2
     return nullptr;
 }
 
@@ -168,7 +165,7 @@ void SmallShell::executeCommand(const char* cmd_line) {
 
 Command::~Command() {
 }
-Command::Command(const char* cmd_line) {}
+
 
 BuiltInCommand::BuiltInCommand(const char* cmd_line) : Command(cmd_line) {}
 
@@ -359,8 +356,9 @@ PwdCommand::PwdCommand(const char* cmd_line)
 void PwdCommand::execute() {
     char path[PATH_MAX];
     getcwd(path, PATH_MAX);
-    if (path == NULL) {
+    if (getcwd(path, PATH_MAX) == NULL) {
         perror("smash error: getcwd failed");
+        return;
     }
     cout << path << endl;
 }
@@ -374,8 +372,9 @@ CdCommand::CdCommand(const char* cmd_line)
     if (this->numOfArgs == 0) {
         char curDir[PATH_MAX];
         getcwd(curDir, PATH_MAX);
-        if (curDir == NULL) {
+        if (getcwd(curDir, PATH_MAX) == NULL) {
             perror("smash error: getcwd failed");
+            return;
         }
         this->newDir = curDir;
     } else {
@@ -390,8 +389,9 @@ void CdCommand::execute() {
 
     char curDir[PATH_MAX];
     getcwd(curDir, PATH_MAX);
-    if (curDir == NULL) {
+    if (getcwd(curDir, PATH_MAX) == NULL) {
         perror("smash error: getcwd failed");
+        return;
     }
 
     if (numOfArgs == 0) {
@@ -569,7 +569,6 @@ void SysInfoCommand::execute() {
     std::cout << "Boot Time: " << std::put_time(boot_tm, "%Y-%m-%d %H:%M:%S") << "\n";
 }
 
-<<<<<<< HEAD
 WhoAmICommand::WhoAmICommand(const char* cmd_line) : Command(cmd_line) {}
 
 void WhoAmICommand::execute()
@@ -734,11 +733,11 @@ void ExternalCommand::execute() {
         if (is_background) smash.getJobslist()->addJob(this, pid);
         else
         {
-            smash.setFr_pid(pid);
+            smash.setFg_pid(pid);
             if (waitpid(pid, NULL, WUNTRACED) == -1) {
                 perror("smash error: waitpid failed");
             }
-            smash.setFr_pid(-1);
+            smash.setFg_pid(-1);
         }
     }
     for (int i = 0; i < num_of_args; ++i) free(args[i]);
