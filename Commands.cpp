@@ -526,8 +526,13 @@ ExternalCommand::ExternalCommand(const char* cmd_line) : Command(cmd_line), cmd_
 }
 
 void ExternalCommand::execute() {
+    bool is_background = _isBackgroundComamnd(cmd_line.c_str());
+    char cmd_line_copy[COMMAND_MAX_LENGTH];
+    strcpy(cmd_line_copy, cmd_line.c_str());
+    if (is_background) _removeBackgroundSign(cmd_line_copy);
+
     char* args[COMMAND_MAX_ARGS];
-    int num_of_args = _parseCommandLine(cmd_line.c_str(), args);
+    int num_of_args = _parseCommandLine(cmd_line_copy, args);
 
     pid_t pid = fork();
     if (pid == -1) {
@@ -536,7 +541,7 @@ void ExternalCommand::execute() {
     }
 
     if (pid == 0) {
-        if (isComplexCommand(this->cmd_line)) {
+        if (isComplexCommand(cmd_line_copy)) {
             char* bash_args[4];
             bash_args[0] = (char*)"/bin/bash";
             bash_args[1] = (char*)"-c";
@@ -553,8 +558,15 @@ void ExternalCommand::execute() {
         perror("smash error: execvp failed");
         exit(1);
     } else {
-        if (waitpid(pid, NULL, WUNTRACED) == -1) {
-            perror("smash error: waitpid failed");
+        SmallShell& smash = SmallShell::getInstance();
+        if (is_background) smash.getJobslist()->addJob(this, pid);
+        else
+        {
+            smash.setFr_pid(pid);
+            if (waitpid(pid, NULL, WUNTRACED) == -1) {
+                perror("smash error: waitpid failed");
+            }
+            smash.setFr_pid(-1);
         }
     }
     for (int i = 0; i < num_of_args; ++i) free(args[i]);
