@@ -461,8 +461,11 @@ void JobsList::removeFinishedJobs() {
 
     for (auto const& it : jobs_map) {
         int cause;
-        if (waitpid(it.second.getProcessId(), &cause, WNOHANG) > 0) {
+        int temp = waitpid(it.second.getProcessId(), &cause, WNOHANG);
+        if (temp == 0) {
             remove_list.push_back(it.first);
+        } else if (temp == -1) {
+            perror("smash error: waitpid failed");
         }
     }
 
