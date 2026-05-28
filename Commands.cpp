@@ -149,19 +149,20 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
         }
     }
 
-    if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_line);
-    else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, getJobslist());
-    else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, getJobslist());
-    else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_line);
-    else if (firstWord.compare("unalias") == 0) return new UnAliasCommand(cmd_line);
-    else if (firstWord.compare("unsetenv") == 0) return new UnSetEnvCommand(cmd_line);
-    else if (firstWord.compare("sysinfo") == 0) return new SysInfoCommand(cmd_line);
+    if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_s.c_str());
+    else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_s.c_str(), getJobslist());
+    else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_s.c_str(), getJobslist());
+    else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_s.c_str());
+    else if (firstWord.compare("unalias") == 0) return new UnAliasCommand(cmd_s.c_str());
+    else if (firstWord.compare("unsetenv") == 0) return new UnSetEnvCommand(cmd_s.c_str());
+    else if (firstWord.compare("sysinfo") == 0) return new SysInfoCommand(cmd_s.c_str());
     else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_s.c_str());
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), getJobslist());
-    else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_line);
-    else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_line);
+    else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_s.c_str());
+    else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_s.c_str());
+    else if (firstWord.compare("fg") == 0) return new FgCommand(cmd_s.c_str(), getJobslist());
     else return new ExternalCommand(cmd_s.c_str());
     return nullptr;
 }
@@ -169,7 +170,6 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
 void SmallShell::executeCommand(const char* cmd_line) {
     Command* cmd = CreateCommand(cmd_line);
     if (cmd != nullptr) {
-        getJobslist()->removeFinishedJobs();
         cmd->execute();
         delete cmd;
     }
@@ -281,6 +281,10 @@ JobsList::JobsList() : max_job_id(0) {
 JobsList::~JobsList() {
 }
 
+bool JobsList::jobsMapEmpty() const {
+    return jobs_map.empty();
+}
+
 void JobsList::killAllJobs() {
     std::cout << "smash: sending SIGKILL signal to " <<
         SmallShell::getInstance().getJobslist()->jobs_map.size() << " jobs:\n";
@@ -295,6 +299,25 @@ JobsList::JobEntry* JobsList::getJobById(int jobId) {
     if (it != jobs_map.end()) return &(it->second);
     return nullptr;
 }
+
+void JobsList::removeJobById(int jobId) {
+    jobs_map.erase(jobId);
+}
+
+JobsList::JobEntry* JobsList::getLastJob(int* lastJobId) {
+    if (jobsMapEmpty()) {
+        *lastJobId = 0;
+        return nullptr;
+    }
+    auto it = jobs_map.rbegin();
+    *lastJobId = it->first;
+    return &(it->second);
+}
+
+bool JobsList::JobExist(int jobFgId) {
+    return jobs_map.find(jobFgId) != jobs_map.end();
+}
+
 
 AliasCommand::AliasCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {
     this->is_print_only = false;
@@ -463,7 +486,7 @@ void JobsList::removeFinishedJobs() {
     for (auto const& it : jobs_map) {
         int cause;
         int temp = waitpid(it.second.getProcessId(), &cause, WNOHANG);
-        if (temp == 0) {
+        if (temp > 0) {
             remove_list.push_back(it.first);
         } else if (temp == -1) {
             perror("smash error: waitpid failed");
@@ -472,6 +495,48 @@ void JobsList::removeFinishedJobs() {
 
     for (int id : remove_list) {
         jobs_map.erase(id);
+    }
+}
+
+FgCommand::FgCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(cmd_line) {
+    this->jobs = jobs;
+    this->cmd_line = cmd_line;
+}
+
+void FgCommand::execute() {
+    int jobFg;
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine(cmd_line.c_str(), args);
+
+    if (num_of_args == 1) {
+        if (jobs->jobsMapEmpty()) {
+            cerr << "smash error: fg: jobs list is empty" << endl;
+            return;
+        }
+        jobs->getLastJob(&jobFg);
+    } else if (num_of_args == 2) {
+        try {
+            jobFg = std::stoi(args[1]);
+            if (jobs->JobExist(jobFg) == false) {
+                cerr << "smash error: fg: job-id" << jobFg << " does not exist" << endl;
+                return;
+            }
+        } catch (...) {
+            cerr << "smash error: fg: invalid arguments" << endl;
+            return;
+        }
+    } else {
+        cerr << "smash error: fg: invalid arguments" << endl;
+        return;
+    }
+
+    if (jobs->getJobById(jobFg)) {
+        SmallShell::getInstance().setFg_pid(jobs->getJobById(jobFg)->getProcessId());
+        cout << jobs->getJobById(jobFg)->getCmd_line() << " " << jobs->getJobById(jobFg)->
+            getProcessId() << endl;
+        waitpid(jobs->getJobById(jobFg)->getProcessId(), nullptr, WUNTRACED);
+        jobs->removeJobById(jobs->getJobById(jobFg)->getProcessId());
+        SmallShell::getInstance().setFg_pid(-1);
     }
 }
 
@@ -486,6 +551,7 @@ UnAliasCommand::UnAliasCommand(const char* cmd_line) : BuiltInCommand(cmd_line) 
 
     for (int i = 0; i < num_of_args; ++i) free(args[i]);
 }
+
 
 void UnAliasCommand::execute() {
     if (not_enough_args) {

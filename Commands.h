@@ -228,10 +228,12 @@ public:
 
     JobEntry* getLastJob(int* lastJobId);
 
-    ;
+    bool JobExist(int jobFgId);
+
     JobEntry* getLastStoppedJob(int* jobId);
 
     // TODO: Add extra methods or modify exisitng ones as needed
+    bool jobsMapEmpty() const;
 };
 
 class JobsCommand : public BuiltInCommand {
@@ -242,6 +244,20 @@ public:
     JobsCommand(const char* cmd_line, JobsList* jobs);
 
     virtual ~JobsCommand() {
+    }
+
+    void execute() override;
+};
+
+class FgCommand : public BuiltInCommand {
+private:
+    JobsList* jobs;
+    std::string cmd_line;
+
+public:
+    FgCommand(const char* cmd_line, JobsList* jobs);
+
+    virtual ~FgCommand() {
     }
 
     void execute() override;
