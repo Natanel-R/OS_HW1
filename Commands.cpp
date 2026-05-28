@@ -169,6 +169,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
 void SmallShell::executeCommand(const char* cmd_line) {
     Command* cmd = CreateCommand(cmd_line);
     if (cmd != nullptr) {
+        getJobslist()->removeFinishedJobs();
         cmd->execute();
         delete cmd;
     }
