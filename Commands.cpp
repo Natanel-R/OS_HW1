@@ -535,7 +535,7 @@ void FgCommand::execute() {
         cout << jobs->getJobById(jobFg)->getCmd_line() << " " << jobs->getJobById(jobFg)->
             getProcessId() << endl;
         waitpid(jobs->getJobById(jobFg)->getProcessId(), nullptr, WUNTRACED);
-        jobs->removeJobById(jobs->getJobById(jobFg)->getProcessId());
+        jobs->removeJobById(jobs->getJobById(jobFg)->getJobId());
         SmallShell::getInstance().setFg_pid(-1);
     }
 }
