@@ -9,14 +9,14 @@ void ctrlCHandler(int sig_num) {
     std::cout << "smash: got ctrl-C\n";
 
     int processId = SmallShell::getInstance().getFg_pid();
-    if (processId != -1)
-    {
+    if (processId != -1) {
         if (kill(processId, SIGKILL) == -1) {
             perror("smash error: kill failed");
             return;
+        } else {
+            std::cout << "smash: process " << processId << " was killed\n";
         }
     }
 
-    std::cout << "smash: process" << processId << "was killed\n";
     SmallShell::getInstance().setFg_pid(-1);
 }

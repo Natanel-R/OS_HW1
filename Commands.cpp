@@ -7,16 +7,16 @@
 #include <iomanip>
 #include "Commands.h"
 #include <regex>
-#include <sys/utsname.h> 
-#include <sys/sysinfo.h> 
+#include <sys/utsname.h>
+#include <sys/sysinfo.h>
 #include <time.h>
-#include <fcntl.h> 
+#include <fcntl.h>
 #include <sys/types.h>
 #include <limits.h>
 #include <sys/syscall.h>
 #include <cstdint>
 #include <algorithm>
-extern char **__environ;
+extern char** __environ;
 
 using namespace std;
 
@@ -33,8 +33,7 @@ const std::string WHITESPACE = " \n\r\t\f\v";
 #define FUNC_EXIT()
 #endif
 
-struct USB
-{
+struct USB {
     int dev_num_int;
     std::string dev_num;
     std::string vendor;
@@ -44,8 +43,7 @@ struct USB
     std::string power;
 };
 
-struct Decoder
-{
+struct Decoder {
     uint64_t inode_number;
     int64_t offset;
     ushort dir_entry;
@@ -105,7 +103,7 @@ void _removeBackgroundSign(char* cmd_line) {
     cmd_line[str.find_last_not_of(WHITESPACE, idx) + 1] = 0;
 }
 
-// TODO: Add your implementation for classes in Commands.h 
+// TODO: Add your implementation for classes in Commands.h
 
 SmallShell::SmallShell() {
     this->fg_pid = -1;
@@ -167,7 +165,8 @@ Command::~Command() {
 }
 
 
-BuiltInCommand::BuiltInCommand(const char* cmd_line) : Command(cmd_line) {}
+BuiltInCommand::BuiltInCommand(const char* cmd_line) : Command(cmd_line) {
+}
 
 std::string SmallShell::getPrompt() const {
     return prompt;
@@ -496,23 +495,19 @@ void UnSetEnvCommand::execute() {
     for (auto& name : remove_envvar) {
         std::string search_key = name + "=";
         int fd = syscall(SYS_open, path.c_str(), O_RDONLY);
-        if (fd != -1)
-        {
+        if (fd != -1) {
             char buffer[4096];
             size_t bytes_read;
             std::string file = "";
-            while (((bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer)))) > 0)
-            {
+            while (((bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer)))) > 0) {
                 file.append(buffer, bytes_read);
             }
             syscall(SYS_close, fd);
 
             size_t pos = 0;
-            while (pos < file.length())
-            {
+            while (pos < file.length()) {
                 std::string part(file.c_str() + pos);
-                if (part.find(search_key) == 0)
-                {
+                if (part.find(search_key) == 0) {
                     is_found = true;
                     break;
                 }
@@ -543,13 +538,11 @@ void SysInfoCommand::execute() {
     struct utsname name_data;
     struct sysinfo sys_info;
 
-    if (syscall(SYS_uname, &name_data) == -1)
-    {
+    if (syscall(SYS_uname, &name_data) == -1) {
         perror("smash error: uname failed");
         return;
     }
-    if (syscall(SYS_sysinfo, &sys_info) == -1) 
-    {
+    if (syscall(SYS_sysinfo, &sys_info) == -1) {
         perror("smash error: sysinfo failed");
         return;
     }
@@ -569,16 +562,15 @@ void SysInfoCommand::execute() {
     std::cout << "Boot Time: " << std::put_time(boot_tm, "%Y-%m-%d %H:%M:%S") << "\n";
 }
 
-WhoAmICommand::WhoAmICommand(const char* cmd_line) : Command(cmd_line) {}
+WhoAmICommand::WhoAmICommand(const char* cmd_line) : Command(cmd_line) {
+}
 
-void WhoAmICommand::execute()
-{
+void WhoAmICommand::execute() {
     uid_t uid = syscall(SYS_getuid);
     std::string uid_user = std::to_string(uid);
 
     int fd = syscall(SYS_open, "/etc/passwd", O_RDONLY);
-    if (fd == -1)
-    {
+    if (fd == -1) {
         perror("smash error: open failed");
         return;
     }
@@ -587,19 +579,21 @@ void WhoAmICommand::execute()
     size_t bytes_read;
     std::string file = "";
 
-    while (((bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer))) > 0)) file.append(buffer, bytes_read);
+    while (((bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer))) > 0))
+        file.append(
+            buffer, bytes_read);
     syscall(SYS_close, fd);
 
     std::istringstream iss(file);
     std::string line;
-    while (std::getline(iss, line))
-    {
+    while (std::getline(iss, line)) {
         std::vector<std::string> items_inside_file;
         std::istringstream line_stream(line);
         std::string single_item;
-        while (std::getline(line_stream, single_item, ':')) items_inside_file.push_back(single_item);
-        if (items_inside_file.size() >= 6 && items_inside_file[2] == uid_user)
-        {
+        while (std::getline(line_stream, single_item, ':'))
+            items_inside_file.
+                push_back(single_item);
+        if (items_inside_file.size() >= 6 && items_inside_file[2] == uid_user) {
             std::cout << items_inside_file[0] << "\n";
             std::cout << items_inside_file[2] << "\n";
             std::cout << items_inside_file[3] << "\n";
@@ -609,30 +603,28 @@ void WhoAmICommand::execute()
     }
 }
 
-std::string readUSB(const std::string& path)
-{
+std::string readUSB(const std::string& path) {
     int fd = syscall(SYS_open, path.c_str(), O_RDONLY);
     if (fd == -1) return "N/A";
 
     char buffer[256];
-    size_t bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer)-1);
+    size_t bytes_read = syscall(SYS_read, fd, buffer, sizeof(buffer) - 1);
     syscall(SYS_close, fd);
-    
+
     if (bytes_read <= 0) return "N/A";
 
     if (buffer[bytes_read - 1] == '\n') buffer[bytes_read - 1] = '\0';
     else buffer[bytes_read] = '\0';
-    
+
     return std::string(buffer);
 }
 
-USBInfoCommand::USBInfoCommand(const char* cmd_line) : Command(cmd_line) {}
+USBInfoCommand::USBInfoCommand(const char* cmd_line) : Command(cmd_line) {
+}
 
-void USBInfoCommand::execute()
-{
+void USBInfoCommand::execute() {
     int fd = syscall(SYS_open, "/sys/bus/usb/devices/", O_RDONLY | O_DIRECTORY);
-    if (fd == -1)
-    {
+    if (fd == -1) {
         std::cerr << "smash error: usbinfo: no USB devices found\n";
         return;
     }
@@ -641,24 +633,21 @@ void USBInfoCommand::execute()
     char buffer[4096];
     size_t bytes_read;
 
-    while ((bytes_read = syscall(SYS_getdents64, fd, buffer, sizeof(buffer))) > 0)
-    {
+    while ((bytes_read = syscall(SYS_getdents64, fd, buffer, sizeof(buffer))) > 0) {
         size_t offset = 0;
-        while (offset < bytes_read)
-        {
+        while (offset < bytes_read) {
             Decoder* entry = (Decoder*)(buffer + offset);
-            std::string folder_name(entry->file_name); 
+            std::string folder_name(entry->file_name);
             offset += entry->dir_entry;
             if (folder_name == "." || folder_name == "..") continue;
 
             std::string base_path = "/sys/bus/usb/devices/" + folder_name + "/";
             std::string device_str = readUSB(base_path + "devnum");
             if (device_str == "N/A") continue;
-            
+
             std::string power = readUSB(base_path + "bMaxPower");
-            if (power != "N/A" && power.length() >= 2 && power.substr(power.length() - 2) == "mA")
-            {
-                power = power.substr(0, power.length() -2);
+            if (power != "N/A" && power.length() >= 2 && power.substr(power.length() - 2) == "mA") {
+                power = power.substr(0, power.length() - 2);
             }
             USB device = {
                 std::stoi(device_str),
@@ -673,21 +662,19 @@ void USBInfoCommand::execute()
         }
     }
     syscall(SYS_close, fd);
-    if (devices.empty())
-    {
+    if (devices.empty()) {
         std::cerr << "smash error: usbinfo: no USB devices found\n";
         return;
     }
 
-    std::sort(devices.begin(), devices.end(), [](const USB& a, const USB& b){
+    std::sort(devices.begin(), devices.end(), [](const USB& a, const USB& b) {
         return a.dev_num_int < b.dev_num_int;
     });
 
-    for (const auto& dev : devices)
-    {
+    for (const auto& dev : devices) {
         std::cout << "Device " << dev.dev_num << ": "
-                    << "ID " << dev.vendor << ":" << dev.product << " "
-                    << dev.manufacturer << " " << dev.product_name << " MaxPower: ";
+            << "ID " << dev.vendor << ":" << dev.product << " "
+            << dev.manufacturer << " " << dev.product_name << " MaxPower: ";
         if (dev.power == "N/A") std::cout << "N/A\n";
         else std::cout << dev.power << "mA\n";
     }
@@ -712,6 +699,7 @@ void ExternalCommand::execute() {
     }
 
     if (pid == 0) {
+        setpgrp();
         if (isComplexCommand(cmd_line_copy)) {
             char* bash_args[4];
             bash_args[0] = (char*)"/bin/bash";
@@ -731,8 +719,7 @@ void ExternalCommand::execute() {
     } else {
         SmallShell& smash = SmallShell::getInstance();
         if (is_background) smash.getJobslist()->addJob(this, pid);
-        else
-        {
+        else {
             smash.setFg_pid(pid);
             if (waitpid(pid, NULL, WUNTRACED) == -1) {
                 perror("smash error: waitpid failed");
