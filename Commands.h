@@ -9,6 +9,8 @@
 #define COMMAND_MAX_ARGS (20)
 
 class Command {
+    pid_t pid;
+    std::string cmd_line;
     // TODO: Add your data members
 public:
     Command(const char* cmd_line);
@@ -20,6 +22,11 @@ public:
     //virtual void prepare();
     //virtual void cleanup();
     // TODO: Add your extra methods if needed
+    int getPid() const;
+
+    void setPid(const pid_t newPid);
+
+    std::string getCmdLine() const;
 };
 
 class BuiltInCommand : public Command {
@@ -200,7 +207,7 @@ public:
 
 private:
     std::map<int, JobEntry> jobs_map;
-    int max_job_id;
+    int max_job_id = 0;
 
 public:
     JobsList();

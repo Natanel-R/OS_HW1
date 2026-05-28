@@ -119,6 +119,20 @@ SmallShell::~SmallShell() {
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
 Command::Command(const char* cmd_line) {
+    this->pid = getpid();
+    this->cmd_line = cmd_line;
+}
+
+int Command::getPid() const {
+    return pid;
+}
+
+void Command::setPid(const pid_t newPid) {
+    this->pid = newPid;
+}
+
+std::string Command::getCmdLine() const {
+    return cmd_line;
 }
 
 Command* SmallShell::CreateCommand(const char* cmd_line) {
@@ -136,8 +150,8 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     }
 
     if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_line);
-    else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, &jobs);
-    else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, &jobs);
+    else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_line, getJobslist());
+    else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_line, getJobslist());
     else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_line);
     else if (firstWord.compare("unalias") == 0) return new UnAliasCommand(cmd_line);
     else if (firstWord.compare("unsetenv") == 0) return new UnSetEnvCommand(cmd_line);
@@ -145,7 +159,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_s.c_str());
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
     else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
-    else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), &jobs);
+    else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), getJobslist());
     else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_line);
     else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_line);
     else return new ExternalCommand(cmd_s.c_str());
@@ -428,10 +442,33 @@ void JobsCommand::execute() {
 }
 
 void JobsList::printJobsList() {
+    removeFinishedJobs();
+    for (auto const& pair : jobs_map) {
+        cout << "[" << pair.first << "]" << pair.second.getCmd_line() << endl;
+    }
 }
 
 void JobsList::addJob(Command* cmd, bool isStopped) {
+    removeFinishedJobs();
+
     ++max_job_id;
+    JobEntry cmdJob(max_job_id, cmd->getPid(), cmd->getCmdLine(), isStopped);
+    jobs_map.insert(make_pair(max_job_id, cmdJob));
+}
+
+void JobsList::removeFinishedJobs() {
+    std::vector<int> remove_list;
+
+    for (auto const& it : jobs_map) {
+        int cause;
+        if (waitpid(it.second.getProcessId(), &cause, WNOHANG) > 0) {
+            remove_list.push_back(it.first);
+        }
+    }
+
+    for (int id : remove_list) {
+        jobs_map.erase(id);
+    }
 }
 
 
@@ -693,6 +730,7 @@ void ExternalCommand::execute() {
     int num_of_args = _parseCommandLine(cmd_line_copy, args);
 
     pid_t pid = fork();
+    this->setPid(pid);
     if (pid == -1) {
         perror("smash error: fork failed");
         return;
@@ -718,7 +756,7 @@ void ExternalCommand::execute() {
         exit(1);
     } else {
         SmallShell& smash = SmallShell::getInstance();
-        if (is_background) smash.getJobslist()->addJob(this, pid);
+        if (is_background) smash.getJobslist()->addJob(this, false);
         else {
             smash.setFg_pid(pid);
             if (waitpid(pid, NULL, WUNTRACED) == -1) {
