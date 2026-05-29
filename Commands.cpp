@@ -139,6 +139,16 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
+    size_t pos = string(cmd_line).find(">>");
+    if (pos != string::npos) {
+        return new RedirectionCommand(cmd_s.c_str());
+    } else {
+        size_t pos = string(cmd_line).find(">");
+        if (pos != string::npos) {
+            return new RedirectionCommand(cmd_s.c_str());
+        }
+    }
+
     std::vector<std::pair<std::string, std::string>>* aliases =
         SmallShell::getInstance().getAliases();
     for (const auto& p : *aliases) {
@@ -468,7 +478,7 @@ void JobsCommand::execute() {
 void JobsList::printJobsList() {
     removeFinishedJobs();
     for (auto const& pair : jobs_map) {
-        cout << "[" << pair.first << "]" << pair.second.getCmd_line() << endl;
+        cout << "[" << pair.first << "] " << pair.second.getCmd_line() << endl;
     }
 }
 
@@ -844,4 +854,59 @@ bool ExternalCommand::isComplexCommand(const std::string& cmd) {
     }
     return false;
 }
+
+RedirectionCommand::RedirectionCommand(const char* cmd_line) : Command(cmd_line) {
+    size_t pos = string(cmd_line).find(">>");
+    if (pos != string::npos) {
+        this->ioOp = ">>";
+    } else {
+        pos = string(cmd_line).find(">");
+        this->ioOp = ">";
+    }
+
+    if (ioOp != "")
+        this->realCommand = string(cmd_line).substr(0, pos);
+    this->file = string(cmd_line).substr(pos + ioOp.length());
+}
+
+void RedirectionCommand::execute() {
+    char* args[COMMAND_MAX_ARGS];
+    _parseCommandLine(realCommand.c_str(), args);
+
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        int fd = 0;
+        if (ioOp == ">>") {
+            fd = open((_trim(file)).c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
+            if (fd == -1) {
+                perror("smash error: open failed");
+                exit(1);
+            }
+        } else {
+            fd = open((_trim(file)).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            if (fd == -1) {
+                perror("smash error: open failed");
+                exit(1);
+            }
+        }
+        if (dup2(fd, 1) == -1) {
+            perror("smash error: dup2 failed");
+            exit(1);
+        }
+        if (close(fd) == -1) {
+            perror("smash error: close failed");
+            exit(1);
+        }
+
+        SmallShell::getInstance().executeCommand(realCommand.c_str());
+        exit(0);
+    } else {
+        if (waitpid(pid, nullptr, WUNTRACED) == -1) {
+            perror("smash error: waitpid failed");
+            return;
+        }
+    }
+}
+
 

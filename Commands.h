@@ -52,6 +52,9 @@ public:
 
 
 class RedirectionCommand : public Command {
+    std::string ioOp = "";
+    std::string realCommand;
+    std::string file;
     // TODO: Add your data members
 public:
     explicit RedirectionCommand(const char* cmd_line);
