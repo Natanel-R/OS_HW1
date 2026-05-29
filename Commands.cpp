@@ -149,6 +149,16 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
         }
     }
 
+    size_t pos_pipe = string(cmd_line).find("|&");
+    if (pos_pipe != string::npos) {
+        return new PipeCommand(cmd_s.c_str());
+    } else {
+        size_t pos_pipe = string(cmd_line).find("|");
+        if (pos_pipe != string::npos) {
+            return new PipeCommand(cmd_s.c_str());
+        }
+    }
+
     std::vector<std::pair<std::string, std::string>>* aliases =
         SmallShell::getInstance().getAliases();
     for (const auto& p : *aliases) {
@@ -192,6 +202,12 @@ Command::~Command() {
 
 BuiltInCommand::BuiltInCommand(const char* cmd_line) : Command(cmd_line) {
 }
+
+void BuiltInCommand::executeAsChild() {
+    SmallShell::getInstance().executeCommand(getCmdLine().c_str());
+    exit(0);
+}
+
 
 std::string SmallShell::getPrompt() const {
     return prompt;
@@ -848,6 +864,15 @@ void ExternalCommand::execute() {
     for (int i = 0; i < num_of_args; ++i) free(args[i]);
 }
 
+void ExternalCommand::executeAsChild() {
+    char* args[COMMAND_MAX_ARGS];
+    _parseCommandLine(cmd_line.c_str(), args);
+
+    execvp(args[0], args);
+    exit(1);
+}
+
+
 bool ExternalCommand::isComplexCommand(const std::string& cmd) {
     if (cmd.find('*') != std::string::npos || cmd.find('?') != std::string::npos) {
         return true;
@@ -864,8 +889,7 @@ RedirectionCommand::RedirectionCommand(const char* cmd_line) : Command(cmd_line)
         this->ioOp = ">";
     }
 
-    if (ioOp != "")
-        this->realCommand = string(cmd_line).substr(0, pos);
+    this->realCommand = string(cmd_line).substr(0, pos);
     this->file = string(cmd_line).substr(pos + ioOp.length());
 }
 
@@ -899,7 +923,11 @@ void RedirectionCommand::execute() {
             exit(1);
         }
 
-        SmallShell::getInstance().executeCommand(realCommand.c_str());
+        Command* cmd = SmallShell::getInstance().CreateCommand(realCommand.c_str());
+        if (cmd != nullptr) {
+            cmd->executeAsChild();
+            delete cmd;
+        }
         exit(0);
     } else {
         if (waitpid(pid, nullptr, WUNTRACED) == -1) {
@@ -909,4 +937,54 @@ void RedirectionCommand::execute() {
     }
 }
 
+PipeCommand::PipeCommand(const char* cmd_line) : Command(cmd_line) {
+    size_t pos = string(cmd_line).find("|&");
+    if (pos != string::npos) {
+        this->pipeOp = "|&";
+    } else {
+        pos = string(cmd_line).find("|");
+        this->pipeOp = "|";
+    }
+    this->cmd1 = string(cmd_line).substr(0, pos);
+    this->cmd2 = string(cmd_line).substr(pos + pipeOp.length());
+}
 
+void PipeCommand::execute() {
+    int fd[2];
+    pipe(fd);
+
+    pid_t pid1 = fork();
+    if (pid1 == 0) {
+        int dest = (pipeOp == "|") ? 1 : 2;
+        dup2(fd[1], dest);
+        close(fd[0]);
+        close(fd[1]);
+
+        Command* cmd = SmallShell::getInstance().CreateCommand(cmd1.c_str());
+        if (cmd != nullptr) {
+            cmd->executeAsChild();
+            delete cmd;
+        }
+        exit(0);
+    } else {
+        pid_t pid2 = fork();
+        if (pid2 == 0) {
+            dup2(fd[0], 0);
+            close(fd[1]);
+            close(fd[0]);
+
+            Command* cmd = SmallShell::getInstance().CreateCommand(cmd2.c_str());
+            if (cmd != nullptr) {
+                cmd->executeAsChild();
+                delete cmd;
+            }
+            exit(0);
+        } else {
+            close(fd[1]);
+            close(fd[0]);
+
+            waitpid(pid1, nullptr, WUNTRACED);
+            waitpid(pid2, nullptr, WUNTRACED);
+        }
+    }
+}

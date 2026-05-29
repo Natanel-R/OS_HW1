@@ -27,6 +27,8 @@ public:
     void setPid(const pid_t newPid);
 
     std::string getCmdLine() const;
+
+    virtual void executeAsChild() = 0;
 };
 
 class BuiltInCommand : public Command {
@@ -35,6 +37,8 @@ public:
 
     virtual ~BuiltInCommand() {
     }
+
+    void executeAsChild() override;
 };
 
 class ExternalCommand : public Command {
@@ -48,6 +52,8 @@ public:
     }
 
     void execute() override;
+
+    void executeAsChild() override;
 };
 
 
@@ -63,10 +69,19 @@ public:
     }
 
     void execute() override;
+
+    void executeAsChild() override {
+        this->execute();
+        exit(0);
+    }
 };
 
 class PipeCommand : public Command {
     // TODO: Add your data members
+    std::string cmd1;
+    std::string cmd2;
+    std::string pipeOp;
+
 public:
     PipeCommand(const char* cmd_line);
 
@@ -74,6 +89,11 @@ public:
     }
 
     void execute() override;
+
+    void executeAsChild() override {
+        this->execute();
+        exit(0);
+    }
 };
 
 class DiskUsageCommand : public Command {
@@ -94,6 +114,10 @@ public:
     }
 
     void execute() override;
+
+    void executeAsChild() override {
+        exit(0);
+    }
 };
 
 class USBInfoCommand : public Command {
@@ -105,6 +129,11 @@ public:
     }
 
     void execute() override;
+
+    void executeAsChild() override {
+        this->execute();
+        exit(0);
+    }
 };
 
 class ChangeDirCommand : public BuiltInCommand {
