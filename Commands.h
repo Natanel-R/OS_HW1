@@ -97,6 +97,11 @@ public:
 };
 
 class DiskUsageCommand : public Command {
+private:
+    static int storage;
+
+    friend int Callback(const char* file, const struct stat* sb, int typeflag, struct FTW* ftwbuf);
+
 public:
     DiskUsageCommand(const char* cmd_line);
 
@@ -104,6 +109,10 @@ public:
     }
 
     void execute() override;
+
+    void executeAsChild() override {
+        exit(0);
+    }
 };
 
 class WhoAmICommand : public Command {

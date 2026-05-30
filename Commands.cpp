@@ -16,6 +16,8 @@
 #include <sys/syscall.h>
 #include <cstdint>
 #include <algorithm>
+#include <ftw.h>
+#include <sys/stat.h>
 extern char** __environ;
 
 using namespace std;
@@ -183,6 +185,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_s.c_str());
     else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_s.c_str());
     else if (firstWord.compare("fg") == 0) return new FgCommand(cmd_s.c_str(), getJobslist());
+    else if (firstWord.compare("du") == 0) return new DiskUsageCommand(cmd_s.c_str());
     else return new ExternalCommand(cmd_s.c_str());
     return nullptr;
 }
@@ -987,4 +990,47 @@ void PipeCommand::execute() {
             waitpid(pid2, nullptr, WUNTRACED);
         }
     }
+}
+
+DiskUsageCommand::DiskUsageCommand(const char* cmd_line) : Command(cmd_line) {
+    this->getCmdLine() = cmd_line;
+}
+
+int DiskUsageCommand::storage = 0;
+
+int Callback(const char* file, const struct stat* sb, int typeflag, struct FTW* ftwbuf) {
+    DiskUsageCommand::storage += sb->st_size;
+    return 0;
+}
+
+
+void DiskUsageCommand::execute() {
+    storage = 0;
+
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine(getCmdLine().c_str(), args);
+
+    if (num_of_args > 2) {
+        cerr << "smash error: du: too many arguments" << endl;
+
+        for (int i = 0; i < num_of_args; ++i) free(args[i]);
+
+        return;
+    }
+
+    const char* path;
+
+    if (num_of_args == 1) {
+        path = ".";
+    } else {
+        path = args[1];
+    }
+
+    if (nftw(path, Callback, 10000, FTW_PHYS) == -1) {
+        perror("smash error: nftw failed");
+    } else {
+        cout << "Total disk usage: " << (this->storage + 1023) / 1024 << " KB" << endl;
+    }
+
+    for (int i = 0; i < num_of_args; ++i) free(args[i]);
 }
