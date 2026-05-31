@@ -191,6 +191,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
 }
 
 void SmallShell::executeCommand(const char* cmd_line) {
+    SmallShell::getInstance().getJobslist()->removeFinishedJobs();
     Command* cmd = CreateCommand(cmd_line);
     if (cmd != nullptr) {
         cmd->execute();
@@ -298,6 +299,7 @@ void KillCommand::execute() {
 }
 
 void QuitCommand::execute() {
+    jobs->removeFinishedJobs();
     if (kill_active) {
         jobs->killAllJobs();
     }
@@ -497,7 +499,8 @@ void JobsCommand::execute() {
 void JobsList::printJobsList() {
     removeFinishedJobs();
     for (auto const& pair : jobs_map) {
-        cout << "[" << pair.first << "] " << pair.second.getCmd_line() << endl;
+        cout << "[" << pair.first << "] " << pair.second.getCmd_line() << 
+        " : " << pair.second.getProcessId() << " " << endl;
     }
 }
 
@@ -515,15 +518,19 @@ void JobsList::removeFinishedJobs() {
     for (auto const& it : jobs_map) {
         int cause;
         int temp = waitpid(it.second.getProcessId(), &cause, WNOHANG);
-        if (temp > 0) {
+        if (temp > 0 || temp == -1) {
             remove_list.push_back(it.first);
-        } else if (temp == -1) {
-            perror("smash error: waitpid failed");
-        }
+        } 
     }
 
     for (int id : remove_list) {
         jobs_map.erase(id);
+    }
+
+    if (jobs_map.empty()) {
+        max_job_id = 0;
+    } else {
+        max_job_id = jobs_map.rbegin()->first; 
     }
 }
 
@@ -673,14 +680,9 @@ SysInfoCommand::SysInfoCommand(const char* cmd_line) : BuiltInCommand(cmd_line) 
 void SysInfoCommand::execute() {
     struct utsname name_data;
     struct sysinfo sys_info;
-<<<<<<< Updated upstream
 
-    if (syscall(SYS_uname, &name_data) == -1) {
-=======
-    
     if (syscall(SYS_uname, &name_data) == -1)
     {
->>>>>>> Stashed changes
         perror("smash error: uname failed");
         return;
     }
