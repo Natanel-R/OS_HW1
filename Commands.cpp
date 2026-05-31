@@ -673,8 +673,14 @@ SysInfoCommand::SysInfoCommand(const char* cmd_line) : BuiltInCommand(cmd_line) 
 void SysInfoCommand::execute() {
     struct utsname name_data;
     struct sysinfo sys_info;
+<<<<<<< Updated upstream
 
     if (syscall(SYS_uname, &name_data) == -1) {
+=======
+    
+    if (syscall(SYS_uname, &name_data) == -1)
+    {
+>>>>>>> Stashed changes
         perror("smash error: uname failed");
         return;
     }
