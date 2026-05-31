@@ -499,8 +499,7 @@ void JobsCommand::execute() {
 void JobsList::printJobsList() {
     removeFinishedJobs();
     for (auto const& pair : jobs_map) {
-        cout << "[" << pair.first << "] " << pair.second.getCmd_line() << 
-        " : " << pair.second.getProcessId() << " " << endl;
+        cout << "[" << pair.first << "] " << pair.second.getCmd_line() << endl;
     }
 }
 
@@ -554,7 +553,7 @@ void FgCommand::execute() {
         try {
             jobFg = std::stoi(args[1]);
             if (jobs->JobExist(jobFg) == false) {
-                cerr << "smash error: fg: job-id" << jobFg << " does not exist" << endl;
+                cerr << "smash error: fg: job-id " << jobFg << " does not exist" << endl;
                 return;
             }
         } catch (...) {
