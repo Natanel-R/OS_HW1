@@ -137,29 +137,23 @@ std::string Command::getCmdLine() const {
     return cmd_line;
 }
 
+bool isAliasDefinition(const std::string& cmd_line) {
+    static const std::regex alias_regex(R"(^alias [a-zA-Z0-9_]+='.*'$)");
+
+    if (cmd_line.substr(0, 6) != "alias ") {
+        return false;
+    }
+
+    return std::regex_match(cmd_line, alias_regex);
+}
+
 
 Command* SmallShell::CreateCommand(const char* cmd_line) {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
-    size_t pos = string(cmd_line).find(">>");
-    if (pos != string::npos) {
-        return new RedirectionCommand(cmd_s.c_str());
-    } else {
-        size_t pos = string(cmd_line).find(">");
-        if (pos != string::npos) {
-            return new RedirectionCommand(cmd_s.c_str());
-        }
-    }
-
-    size_t pos_pipe = string(cmd_line).find("|&");
-    if (pos_pipe != string::npos) {
-        return new PipeCommand(cmd_s.c_str());
-    } else {
-        size_t pos_pipe = string(cmd_line).find("|");
-        if (pos_pipe != string::npos) {
-            return new PipeCommand(cmd_s.c_str());
-        }
+    if (isAliasDefinition(cmd_s)) {
+        return new AliasCommand(cmd_s.c_str());
     }
 
     std::vector<std::pair<std::string, std::string>>* aliases =
@@ -171,6 +165,27 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
             break;
         }
     }
+
+    size_t pos = string(cmd_s).find(">>");
+    if (pos != string::npos) {
+        return new RedirectionCommand(cmd_s.c_str());
+    } else {
+        size_t pos = string(cmd_s).find(">");
+        if (pos != string::npos) {
+            return new RedirectionCommand(cmd_s.c_str());
+        }
+    }
+
+    size_t pos_pipe = string(cmd_s).find("|&");
+    if (pos_pipe != string::npos) {
+        return new PipeCommand(cmd_s.c_str());
+    } else {
+        size_t pos_pipe = string(cmd_s).find("|");
+        if (pos_pipe != string::npos) {
+            return new PipeCommand(cmd_s.c_str());
+        }
+    }
+
 
     if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_s.c_str());
     else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_s.c_str(), getJobslist());
@@ -360,17 +375,18 @@ AliasCommand::AliasCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {
         return;
     }
 
-    std::regex given_regex(R"(^alias [a-zA-Z0-9_]+='[^']*'$)");
-    if (!std::regex_match(cmd_str, given_regex)) {
-        error_type = 1;
-        return;
-    }
 
     size_t equal_indx = cmd_str.find('=');
     this->name = cmd_str.substr(6, equal_indx - 6);
     size_t quote_indx = equal_indx + 2;
     size_t command_len = cmd_str.length() - quote_indx - 1;
     this->command = cmd_str.substr(quote_indx, command_len);
+
+    std::regex given_regex(R"(^alias [a-zA-Z0-9_]+='[^']*'$)");
+    if (!std::regex_match(cmd_str, given_regex)) {
+        error_type = 1;
+        return;
+    }
 }
 
 void AliasCommand::execute() {
@@ -387,7 +403,7 @@ void AliasCommand::execute() {
         return;
     }
     std::vector<std::string> reserved_keywords = {"chprompt", "showpid", "pwd", "cd", "jobs", "fg",
-        "quit", "kill", "alias", "unalias", "unsetenv", "sysinfo"
+        "quit", "kill", "alias", "unalias", "unsetenv", "sysinfo", "whoami", "du", "usbinfo"
     };
     for (const auto& key : reserved_keywords) {
         if (this->name == key) {
@@ -403,6 +419,31 @@ void AliasCommand::execute() {
             return;
         }
     }
+
+    char* args[COMMAND_MAX_ARGS];
+    int num_of_args = _parseCommandLine((this->command).c_str(), args);
+    std::string check = "which " + string(args[0]) + " > /dev/null 2>&1";
+
+
+    bool condition = true;
+    for (const auto& p : reserved_keywords) {
+        if (p == string(args[0])) {
+            condition = false;
+        }
+    }
+
+
+    if (system(check.c_str()) == 0) {
+        condition = false;
+    }
+
+    if (condition) {
+        std::cerr << "smash error: alias: invalid alias format\n";
+        for (int i = 0; i < num_of_args; ++i) free(args[i]);
+        return;
+    }
+
+    for (int i = 0; i < num_of_args; ++i) free(args[i]);
     aliases->push_back(std::make_pair(this->name, this->command));
 }
 
