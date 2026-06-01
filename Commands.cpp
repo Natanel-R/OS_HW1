@@ -438,6 +438,7 @@ void AliasCommand::execute() {
 
     char* args[COMMAND_MAX_ARGS];
     int num_of_args = _parseCommandLine((this->command).c_str(), args);
+    std::string checkCmd = "which " + string(args[0]) + " > /dev/null 2>&1";
 
 
     bool condition = true;
@@ -445,6 +446,10 @@ void AliasCommand::execute() {
         if (p == string(args[0])) {
             condition = false;
         }
+    }
+
+    if (std::system(checkCmd.c_str()) == 0) {
+        condition = false;
     }
 
 
