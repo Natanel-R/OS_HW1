@@ -29,6 +29,10 @@ public:
     std::string getCmdLine() const;
 
     virtual void executeAsChild() = 0;
+
+    virtual bool isBuiltIn() {
+        return true;
+    }
 };
 
 class BuiltInCommand : public Command {
@@ -54,6 +58,10 @@ public:
     void execute() override;
 
     void executeAsChild() override;
+
+    bool isBuiltIn() override {
+        return false;
+    }
 };
 
 

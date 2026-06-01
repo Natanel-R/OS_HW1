@@ -137,6 +137,7 @@ std::string Command::getCmdLine() const {
     return cmd_line;
 }
 
+
 Command* SmallShell::CreateCommand(const char* cmd_line) {
     string cmd_s = _trim(string(cmd_line));
     string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
@@ -173,6 +174,7 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
 
     if (firstWord.compare("chprompt") == 0) return new ChpromptCommand(cmd_s.c_str());
     else if (firstWord.compare("quit") == 0) return new QuitCommand(cmd_s.c_str(), getJobslist());
+    else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("kill") == 0) return new KillCommand(cmd_s.c_str(), getJobslist());
     else if (firstWord.compare("alias") == 0) return new AliasCommand(cmd_s.c_str());
     else if (firstWord.compare("unalias") == 0) return new UnAliasCommand(cmd_s.c_str());
@@ -180,7 +182,6 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
     else if (firstWord.compare("sysinfo") == 0) return new SysInfoCommand(cmd_s.c_str());
     else if (firstWord.compare("showpid") == 0) return new ShowPidCommand(cmd_s.c_str());
     else if (firstWord.compare("pwd") == 0) return new PwdCommand(cmd_s.c_str());
-    else if (firstWord.compare("cd") == 0) return new CdCommand(cmd_s.c_str());
     else if (firstWord.compare("jobs") == 0) return new JobsCommand(cmd_s.c_str(), getJobslist());
     else if (firstWord.compare("whoami") == 0) return new WhoAmICommand(cmd_s.c_str());
     else if (firstWord.compare("usbinfo") == 0) return new USBInfoCommand(cmd_s.c_str());
@@ -519,7 +520,7 @@ void JobsList::removeFinishedJobs() {
         int temp = waitpid(it.second.getProcessId(), &cause, WNOHANG);
         if (temp > 0 || temp == -1) {
             remove_list.push_back(it.first);
-        } 
+        }
     }
 
     for (int id : remove_list) {
@@ -529,7 +530,7 @@ void JobsList::removeFinishedJobs() {
     if (jobs_map.empty()) {
         max_job_id = 0;
     } else {
-        max_job_id = jobs_map.rbegin()->first; 
+        max_job_id = jobs_map.rbegin()->first;
     }
 }
 
@@ -680,8 +681,7 @@ void SysInfoCommand::execute() {
     struct utsname name_data;
     struct sysinfo sys_info;
 
-    if (syscall(SYS_uname, &name_data) == -1)
-    {
+    if (syscall(SYS_uname, &name_data) == -1) {
         perror("smash error: uname failed");
         return;
     }
@@ -906,19 +906,59 @@ RedirectionCommand::RedirectionCommand(const char* cmd_line) : Command(cmd_line)
 void RedirectionCommand::execute() {
     char* args[COMMAND_MAX_ARGS];
     _parseCommandLine(realCommand.c_str(), args);
+    int standard_output = 0;
 
-    pid_t pid = fork();
+    bool isBuiltIn = this->isBuiltIn();
+    if (!isBuiltIn) {
+        pid_t pid = fork();
 
-    if (pid == 0) {
-        int fd = 0;
-        if (ioOp == ">>") {
-            fd = open((_trim(file)).c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
+        if (pid == 0) {
+            int fd = 0;
+            if (ioOp == ">>") {
+                fd = open((_trim(file)).c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
+                if (fd == -1) {
+                    perror("smash error: open failed");
+                    exit(1);
+                }
+            } else {
+                fd = open((_trim(file)).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+                if (fd == -1) {
+                    perror("smash error: open failed");
+                    exit(1);
+                }
+            }
+            if (dup2(fd, 1) == -1) {
+                perror("smash error: dup2 failed");
+                exit(1);
+            }
+            if (close(fd) == -1) {
+                perror("smash error: close failed");
+                exit(1);
+            }
+
+            Command* cmd = SmallShell::getInstance().CreateCommand(realCommand.c_str());
+            if (cmd != nullptr) {
+                cmd->executeAsChild();
+                delete cmd;
+            }
+            exit(0);
+        } else {
+            if (waitpid(pid, nullptr, WUNTRACED) == -1) {
+                perror("smash error: waitpid failed");
+                return;
+            }
+        }
+    } else {
+        standard_output = dup(1);
+        int fd;
+        if (this->ioOp == ">>") {
+            fd = open((_trim(this->file)).c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
             if (fd == -1) {
                 perror("smash error: open failed");
                 exit(1);
             }
         } else {
-            fd = open((_trim(file)).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            fd = open((_trim(this->file)).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
             if (fd == -1) {
                 perror("smash error: open failed");
                 exit(1);
@@ -933,21 +973,19 @@ void RedirectionCommand::execute() {
             exit(1);
         }
 
-        Command* cmd = SmallShell::getInstance().CreateCommand(realCommand.c_str());
+        Command* cmd = SmallShell::getInstance().CreateCommand(this->realCommand.c_str());
         if (cmd != nullptr) {
-            cmd->executeAsChild();
+            cmd->execute();
             delete cmd;
         }
-        exit(0);
-    } else {
-        if (waitpid(pid, nullptr, WUNTRACED) == -1) {
-            perror("smash error: waitpid failed");
-            return;
-        }
     }
+    dup2(standard_output, 1);
+    close(standard_output);
 }
 
-PipeCommand::PipeCommand(const char* cmd_line) : Command(cmd_line) {
+PipeCommand::PipeCommand(const char* cmd_line)
+    :
+    Command(cmd_line) {
     size_t pos = string(cmd_line).find("|&");
     if (pos != string::npos) {
         this->pipeOp = "|&";
@@ -999,7 +1037,9 @@ void PipeCommand::execute() {
     }
 }
 
-DiskUsageCommand::DiskUsageCommand(const char* cmd_line) : Command(cmd_line) {
+DiskUsageCommand::DiskUsageCommand(const char* cmd_line)
+    :
+    Command(cmd_line) {
     this->getCmdLine() = cmd_line;
 }
 
