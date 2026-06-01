@@ -147,6 +147,22 @@ bool isAliasDefinition(const std::string& cmd_line) {
     return std::regex_match(cmd_line, alias_regex);
 }
 
+size_t hasSignOut(const string& cmd, const string& sign) {
+    bool inside = false;
+    for (size_t i = 0; i < cmd.length(); i++) {
+        if (cmd[i] == '\'') {
+            inside = !inside;
+        }
+
+        if (!inside) {
+            if (cmd.substr(i, sign.length()) == sign) {
+                return i;
+            }
+        }
+    }
+    return string::npos;
+}
+
 
 Command* SmallShell::CreateCommand(const char* cmd_line) {
     string cmd_s = _trim(string(cmd_line));
@@ -166,21 +182,21 @@ Command* SmallShell::CreateCommand(const char* cmd_line) {
         }
     }
 
-    size_t pos = string(cmd_s).find(">>");
+    size_t pos = hasSignOut(cmd_s, ">>");
     if (pos != string::npos) {
         return new RedirectionCommand(cmd_s.c_str());
     } else {
-        size_t pos = string(cmd_s).find(">");
+        size_t pos = hasSignOut(cmd_s, ">");
         if (pos != string::npos) {
             return new RedirectionCommand(cmd_s.c_str());
         }
     }
 
-    size_t pos_pipe = string(cmd_s).find("|&");
+    size_t pos_pipe = hasSignOut(cmd_s, "|&");
     if (pos_pipe != string::npos) {
         return new PipeCommand(cmd_s.c_str());
     } else {
-        size_t pos_pipe = string(cmd_s).find("|");
+        size_t pos_pipe = hasSignOut(cmd_s, "|");
         if (pos_pipe != string::npos) {
             return new PipeCommand(cmd_s.c_str());
         }
@@ -422,7 +438,6 @@ void AliasCommand::execute() {
 
     char* args[COMMAND_MAX_ARGS];
     int num_of_args = _parseCommandLine((this->command).c_str(), args);
-    std::string check = "which " + string(args[0]) + " > /dev/null 2>&1";
 
 
     bool condition = true;
@@ -432,10 +447,6 @@ void AliasCommand::execute() {
         }
     }
 
-
-    if (system(check.c_str()) == 0) {
-        condition = false;
-    }
 
     if (condition) {
         std::cerr << "smash error: alias: invalid alias format\n";
